@@ -1,0 +1,14 @@
+{
+  "name": "whatsapp-dealer-bot",
+  "version": "1.0.0",
+  "description": "WhatsApp-style demo chatbot for a Lahore property dealer (DHA/Bahria). Demo only — not connected to real WhatsApp.",
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs"
+  },
+  "dependencies": {
+    "dotenv": "^16.0.0",
+    "express": "^4.19.0",
+    "groq-sdk": "^1.6.0"
+  }
+}
