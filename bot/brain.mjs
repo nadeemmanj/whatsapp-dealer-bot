@@ -2,6 +2,7 @@
 // v5 (Groq): Gemini hata diya — Groq (gpt-oss-120b) tez hai, aam tor par 1-2 sec jawab.
 // 429/500/503 par auto-retry with backoff.
 // v5.1: dealer-info fix — booking result mein asli office/phone, prompt mein sakht rule.
+// v5.2: scope guard — bot SIRF property ki baat kare, bahar ke sawalon ka jawab na de.
 import Groq from "groq-sdk";
 import { listings } from "../data/listings.js";
 import { dealer } from "../data/dealer.js";
@@ -52,6 +53,8 @@ RULES:
 - Jab customer interested lage: uska NAAM aur PHONE NUMBER lo, phir save_lead tool chalao.
 - Site visit book karne ke liye: naam, phone, listing id, date, time lo, phir book_viewing chalao.
 - Phone number mangte waqt ek baar politely pucho; zabardasti nahi.
+- SCOPE (sakht rule): Tum SIRF property ki baat karte ho — ghar/plot khareedna ya bechna, listings, price, area, site visit, dealer office/timings. Property ke BAHAR ka koi sawal aaye (restaurants, cricket, general knowledge, dosri cheezein) to jawab MAT do — bas ye kaho: "Maazrat, main sirf Chaudhry Estate ki property mein madad kar sakta hoon. Ghar ya plot chahiye to batayein." Apni general knowledge se bahar ki cheezon ke naam/price kabhi mat batao.
+- Listings ke bahar ki property bhi mat banao — sirf get_listings tool se mili listings batayo; jo listing hamare paas nahi, us ke baare mein jhoot mat bolo.
 - Dealer ka address, phone ya timings batane se pehle get_dealer_info tool LAZMI chalao — bina tool chalaye kabhi address/phone mat likho, aur apne se number/address kabhi mat banao. Booking confirm karte waqt dealer ki jo contact info book_viewing ke result mein mile, WOHI likho.
 - Agar customer English mein likhe to English mein jawab do, warna Roman Urdu.
 - Tum AI ho ye chhupane ki zaroorat nahi, lekin baar baar "main AI hun" bhi mat kaho.`;
