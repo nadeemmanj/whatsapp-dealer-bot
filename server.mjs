@@ -1,4 +1,5 @@
 // Express server: WhatsApp-style UI + /api/chat + Meta WhatsApp webhook (/webhook)
+// Local (PC): node server.mjs — Vercel: api/index.js se export hota hai
 import "dotenv/config";
 import express from "express";
 import path from "node:path";
@@ -45,37 +46,41 @@ app.get("/webhook", (req, res) => {
 // --- Meta se incoming WhatsApp messages (POST) ---
 // Ek hi message dobara aaye to ignore karo (Meta kabhi redeliver karta hai)
 const seenMessages = new Set();
-app.post("/webhook", (req, res) => {
-  // Pehle foran 200 OK — Meta ko jawab do, phir background mein process karo
-  res.sendStatus(200);
-
-  (async () => {
-    try {
-      if (!verifySignature(req.rawBody, req.headers["x-hub-signature-256"])) {
-        console.log("[webhook] galat signature — ignore");
-        return;
-      }
-      const value = req.body?.entry?.[0]?.changes?.[0]?.value;
-      const messages = value?.messages || [];
-      for (const m of messages) {
-        if (m.type !== "text" || !m.text?.body) continue;
-        if (seenMessages.has(m.id)) continue;
-        seenMessages.add(m.id);
-        if (seenMessages.size > 1000) seenMessages.clear();
-        const from = m.from; // customer ka number — yehi sessionId hai
-        console.log(`[webhook] ${from}: ${m.text.body}`);
-        try { await markAsRead(m.id); } catch {}
-        const reply = await chat(from, m.text.body.trim());
-        await sendWhatsAppText(from, reply);
-        console.log(`[webhook] reply bheja → ${from}`);
-      }
-    } catch (e) {
-      console.log("[webhook] error:", e.message);
+// Vercel serverless par: pehle poora kaam karo (reply bhej do), phir 200 OK do.
+// (Response ke baad serverless function freeze ho sakta hai, is liye 200 pehle nahi.)
+app.post("/webhook", async (req, res) => {
+  try {
+    if (!verifySignature(req.rawBody, req.headers["x-hub-signature-256"])) {
+      console.log("[webhook] galat signature — ignore");
+      return res.sendStatus(403);
     }
-  })();
+    const value = req.body?.entry?.[0]?.changes?.[0]?.value;
+    const messages = value?.messages || [];
+    for (const m of messages) {
+      if (m.type !== "text" || !m.text?.body) continue;
+      if (seenMessages.has(m.id)) continue;
+      seenMessages.add(m.id);
+      if (seenMessages.size > 1000) seenMessages.clear();
+      const from = m.from; // customer ka number — yehi sessionId hai
+      console.log(`[webhook] ${from}: ${m.text.body}`);
+      try { await markAsRead(m.id); } catch {}
+      const reply = await chat(from, m.text.body.trim());
+      await sendWhatsAppText(from, reply);
+      console.log(`[webhook] reply bheja → ${from}`);
+    }
+  } catch (e) {
+    console.log("[webhook] error:", e.message);
+  }
+  // Error ho bhi jaye to 200 do taake Meta dobara na bheje
+  res.sendStatus(200);
 });
 
-app.listen(PORT, () => {
-  console.log(`WhatsApp Dealer Bot demo chal raha hai: http://localhost:${PORT}`);
-  console.log("Roko: Ctrl+C");
-});
+// Vercel par serverless function khud listen nahi karta — sirf local par suno
+if (process.env.VERCEL !== "1") {
+  app.listen(PORT, () => {
+    console.log(`WhatsApp Dealer Bot demo chal raha hai: http://localhost:${PORT}`);
+    console.log("Roko: Ctrl+C");
+  });
+}
+
+export default app;
