@@ -3,10 +3,12 @@
 // 429/500/503 par auto-retry with backoff.
 // v5.1: dealer-info fix — booking result mein asli office/phone, prompt mein sakht rule.
 // v5.2: scope guard — bot SIRF property ki baat kare, bahar ke sawalon ka jawab na de.
+// v5.3: MongoDB save (store.mjs) + dealer WhatsApp alert har lead/booking par.
 import Groq from "groq-sdk";
 import { listings } from "../data/listings.js";
 import { dealer } from "../data/dealer.js";
 import { saveLead, saveBooking } from "./store.mjs";
+import { sendDealerAlert } from "./whatsapp.mjs";
 
 // MODEL_NAME .env mein set kar sakte ho, warna default openai/gpt-oss-120b
 // Tez/halka alternative: openai/gpt-oss-20b (dono free tier par same limits)
@@ -121,7 +123,7 @@ const tools = [
   },
 ];
 
-function runTool(name, args) {
+async function runTool(name, args) {
   if (name === "get_listings") {
     let out = listings;
     if (args.type) out = out.filter((l) => l.type === args.type);
@@ -136,11 +138,23 @@ function runTool(name, args) {
     }));
   }
   if (name === "get_dealer_info") return dealer;
-  if (name === "save_lead") return { ok: true, saved: saveLead(args) };
+  if (name === "save_lead") {
+    const saved = await saveLead(args);
+    try {
+      await sendDealerAlert(`🔔 Nayi lead — ${dealer.name}\nNaam: ${saved.name}\nPhone: ${saved.phone}\nBudget: ${saved.budget || "-"}\nArea: ${saved.area || "-"}`);
+      console.log("[bot] dealer alert bheji");
+    } catch (e) { console.log("[bot] dealer alert fail:", e.message); }
+    return { ok: true, saved };
+  }
   if (name === "book_viewing") {
     const l = listings.find((x) => x.id === (args.listing_id || "").toUpperCase());
     if (!l) return { ok: false, error: "listing id nahi mili" };
-    return { ok: true, booking: saveBooking({ ...args, listing_id: l.id }), dealer: { office: dealer.office, phone: dealer.phone, timings: dealer.timings } };
+    const booking = await saveBooking({ ...args, listing_id: l.id });
+    try {
+      await sendDealerAlert(`📅 Nayi booking — ${dealer.name}\nNaam: ${booking.name}\nPhone: ${booking.phone}\nListing: ${l.id} (${l.area}, ${l.size})\nDate: ${booking.date}, Time: ${booking.time}`);
+      console.log("[bot] dealer alert bheji");
+    } catch (e) { console.log("[bot] dealer alert fail:", e.message); }
+    return { ok: true, booking, dealer: { office: dealer.office, phone: dealer.phone, timings: dealer.timings } };
   }
   return { ok: false, error: "unknown tool" };
 }
@@ -193,7 +207,7 @@ export async function chat(sessionId, userText) {
       } catch {
         args = {};
       }
-      const result = runTool(c.function.name, args);
+      const result = await runTool(c.function.name, args);
       messages.push({ role: "tool", tool_call_id: c.id, content: JSON.stringify(result) });
     }
   }

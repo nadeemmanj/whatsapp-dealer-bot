@@ -1,6 +1,8 @@
 // WhatsApp Cloud API: message bhejna + Meta ki signature check.
 // Brain (Groq) se jawab le kar Meta ko bhejte hain.
+// v5.3: dealer alert — nayi lead/booking par dealer ko WhatsApp alert.
 import crypto from "node:crypto";
+import { dealer } from "../data/dealer.js";
 
 const API_VERSION = "v20.0";
 const GRAPH = `https://graph.facebook.com/${API_VERSION}`;
@@ -52,6 +54,25 @@ export async function markAsRead(messageId) {
     }),
   });
   if (!res.ok) console.log("[whatsapp] mark-read failed:", res.status);
+}
+
+// Pakistan number ko international format mein badlo: 0300-1234567 -> 923001234567
+export function normalizeNumber(n) {
+  const d = String(n || "").replace(/\D/g, "");
+  if (d.startsWith("92")) return d;
+  if (d.startsWith("0")) return "92" + d.slice(1);
+  if (d.length === 10 && d.startsWith("3")) return "92" + d;
+  return d;
+}
+
+// Dealer ko nayi lead/booking ki alert bhejo.
+// Number: DEALER_ALERT_NUMBER env (jaise 923180443543), warna dealer.js wala phone.
+// NOTE: test number se sirf Meta par registered numbers ko message ja sakta hai,
+// aur free-form text sirf us waqt chalta hai jab us number ne aakhri 24h mein
+// test number ko message bheja ho — demo mein dealer alert apne number par lo.
+export async function sendDealerAlert(text) {
+  const to = normalizeNumber(process.env.DEALER_ALERT_NUMBER || dealer.phone);
+  return sendWhatsAppText(to, text);
 }
 
 // Meta ki signature check — sirf tab jab WHATSAPP_APP_SECRET set ho.
